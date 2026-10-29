@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0B0C; --side:#111113; --surface:#141416; --field:#161618;
+  --line:#1F1F23; --line2:#2A2A2E; --text:#F4EFEA; --soft:#D9D3CD;
+  --muted:#A8A29E; --dim:#8A8580; --accent:#CC2F3B; --accent-text:#FF7A82;
+  --pink-text:#FFB3BC; --purple:#B57BFF; --ink:#2A0A12;
+  --serif:'Playfair Display',Georgia,serif; --sans:Inter,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--serif)}
+button{cursor:pointer;font:inherit;color:inherit}
+button:disabled{cursor:not-allowed;opacity:.45}
+:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}
+input::placeholder,textarea::placeholder{color:var(--dim)}
+a{color:var(--accent-text)}a:hover{color:var(--pink-text)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.app{min-height:100vh;display:flex;flex-wrap:wrap}
+.side{flex:1 1 232px;padding:24px 18px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:28px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:44px;height:44px;border-radius:12px;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center;font:italic 700 26px var(--serif)}
+.brand b{font-size:18px;display:block}.brand small{font:400 12px var(--sans);color:var(--muted)}
+.label{font:600 11px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:0 14px 6px}
+.nav{display:flex;flex-direction:column;gap:6px}
+.nav button{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 14px;border:0;border-radius:10px;font:500 15px var(--sans);text-align:left;background:transparent;color:var(--soft)}
+.nav button:hover{background:#1E1E22}
+.nav button.on{background:var(--accent);color:#fff}
+.nav .mini{min-height:40px;font-size:14px;font-weight:400}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.nav .cnt{margin-left:auto;color:var(--dim);font-size:12px}
+.wrap{flex:999 1 640px;min-width:0;display:flex;flex-wrap:wrap}
+main{flex:999 1 560px;min-width:0;padding:32px 36px 48px;display:flex;flex-direction:column;gap:28px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+header .t{flex:1 1 240px}
+h1{margin:0;font-size:40px;font-weight:800}
+.today{font:400 14px var(--sans);color:var(--muted)}
+.cap::first-letter{text-transform:uppercase}
+.search{flex:0 1 320px;min-width:200px;display:flex;align-items:center;gap:10px;height:44px;padding:0 16px;border-radius:12px;background:var(--field);border:1px solid var(--line2)}
+.search input{flex:1;min-width:0;height:40px;background:transparent;border:0;outline:none;color:var(--text);font:400 15px var(--sans)}
+.btn{height:44px;padding:0 20px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:600 15px var(--sans);display:inline-flex;align-items:center;gap:8px}
+.ghost{min-height:44px;padding:0 4px;border:0;background:transparent;color:var(--muted);font:500 14px var(--sans);display:inline-flex;align-items:center;gap:8px}
+.ghost.red{color:var(--accent-text)}
+.outline{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--soft);font:500 13px var(--sans);display:inline-flex;align-items:center;gap:8px}
+.row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.row.c{align-items:center}
+h2{margin:0;font-size:26px;font-weight:700}
+.quick{width:100%;min-height:96px;padding:18px 20px;border-radius:14px;border:1px solid var(--line2);background:var(--surface);color:var(--dim);text-align:left;font:italic 400 18px var(--serif)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px}
+.card{background:var(--surface);border:1px solid #232327;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.card .top{position:relative;height:132px;display:flex;align-items:center;justify-content:center;padding:0 16px}
+.word{font:800 28px var(--serif);color:var(--ink);letter-spacing:.03em;text-align:center}
+.pill{position:absolute;top:12px;left:12px;padding:4px 10px;border-radius:999px;background:var(--bg);color:var(--pink-text);font:600 11px var(--sans)}
+.round{position:absolute;top:10px;right:10px;width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center}
+.card .body{padding:16px 18px 20px;display:flex;flex-direction:column;gap:8px}
+.card .cat{font-size:16px;font-weight:700;color:var(--accent-text)}
+.card p{margin:0;font:400 15px/1.5 var(--sans);color:var(--soft)}
+.list{display:flex;flex-direction:column;gap:16px}
+.entry{display:flex;gap:20px;align-items:flex-start;width:100%;padding:18px 20px;border-radius:14px;border:1px solid #232327;background:var(--surface);text-align:left}
+.entry:hover,.recent:hover{background:#1E1E22}
+.date{flex:none;width:56px;display:flex;flex-direction:column;align-items:center}
+.date b{font-size:30px;line-height:1}.date span{font:500 12px var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.entry .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.entry .tt{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.entry .tt b{font-size:19px}
+.tag{padding:2px 10px;border-radius:999px;color:var(--ink);font:600 11px var(--sans)}
+.ex{font:400 14px/1.5 var(--sans);color:#C9C3BD}
+mark{background:#5A2230;color:var(--text);border-radius:3px;padding:0 2px}
+.empty{margin:0;padding:32px;border:1px dashed var(--line2);border-radius:14px;text-align:center;color:var(--muted);font:italic 400 18px var(--serif)}
+.seg{display:flex;padding:4px;border-radius:12px;background:var(--field);border:1px solid var(--line2)}
+.seg button{min-height:40px;padding:0 16px;border:0;border-radius:9px;font:600 14px var(--sans);background:transparent;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff}
+.prompt{display:flex;flex-wrap:wrap;border-radius:16px;overflow:hidden;border:1px solid #232327;background:var(--surface)}
+.prompt .sw{flex:0 0 180px;min-height:120px;display:flex;align-items:center;justify-content:center;padding:16px}
+.prompt .sw .word{font-size:24px}
+.prompt .tx{flex:1 1 280px;padding:20px 22px;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.kicker{font:600 11px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text)}
+.prompt p{margin:0;font:italic 400 22px/1.4 var(--serif)}
+.fields{display:flex;flex-wrap:wrap;gap:16px}
+.field{display:flex;flex-direction:column;gap:8px;font:600 12px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.field input{height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line2);background:var(--field);color:var(--text);font:400 15px var(--sans);color-scheme:dark;letter-spacing:0;text-transform:none}
+.field input.ttl{font:600 17px var(--serif)}
+.field textarea{min-height:360px;padding:20px 22px;border-radius:14px;border:1px solid var(--line2);background:var(--surface);color:var(--text);font:400 19px/1.7 var(--serif);resize:vertical;text-transform:none;letter-spacing:0}
+.words{font:400 13px var(--sans);color:var(--muted)}
+.read{display:flex;flex-direction:column;gap:22px;max-width:760px}
+.read h2{font-size:44px;font-weight:800;line-height:1.1}
+.read .q{padding:16px 20px;border-radius:14px;color:var(--ink)}
+.read .q span{display:block;font:600 11px var(--sans);letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+.read .q i{font:italic 400 18px/1.45 var(--serif)}
+.read .txt{margin:0;font:400 20px/1.75 var(--serif);color:#EDE7E1;white-space:pre-wrap}
+.right{flex:1 1 300px;padding:32px 28px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:28px}
+.right h2{font-size:24px}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:14px}
+.day{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border-radius:10px;background:var(--surface);border:1px solid #232327}
+.day span{font:500 11px var(--sans);color:var(--muted);text-transform:uppercase}.day b{font-size:16px}
+.day.has{background:var(--purple);border-color:var(--purple)}.day.has span{color:#2A0A3A}.day.has b{color:#1A0628}
+.day.today{border-color:var(--accent-text)}
+.ring{display:flex;align-items:center;gap:20px;padding:20px;border-radius:16px;background:var(--surface);border:1px solid #232327}
+.ring .k{font:600 11px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ring .big{font-size:32px;font-weight:800;white-space:nowrap;color:#D9B8FF;display:block;margin:6px 0}
+.ring .h{font:400 13px/1.4 var(--sans);color:var(--muted)}
+.recent{display:flex;align-items:flex-start;gap:12px;width:100%;padding:12px 14px;border-radius:12px;border:1px solid #232327;background:var(--surface);text-align:left}
+.recent .dot{width:10px;height:10px;margin-top:6px}
+.recent b{font-size:16px;display:block}.recent small{font:400 12px var(--sans);color:var(--muted)}
+.tools{display:flex;gap:10px;flex-wrap:wrap}
+@media (max-width:640px){main{padding:24px 16px 40px}.right{padding:24px 16px}h1{font-size:32px}.search{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo" aria-hidden="true">d</div><div><b>diario</b><small>espacio de escritura</small></div></div>
+    <nav class="nav" aria-label="Secciones">
+      <span class="label">Páginas</span>
+      <button data-nav="inicio"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Inicio</button>
+      <button data-nav="libre"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Escritura libre</button>
+      <button data-nav="azar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.6 5.6L20 9.3l-4 4 1 5.7-5-2.8-5 2.8 1-5.7-4-4 5.4-.7z"/></svg>Consigna al azar</button>
+      <button data-nav="archivo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg>Archivo</button>
+    </nav>
+    <div class="nav" id="sideprompts"></div>
+  </aside>
+
+  <div class="wrap">
+    <main>
+      <header>
+        <div class="t"><h1>Diario</h1><div class="today cap" id="today"></div></div>
+        <label class="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <span class="sr">Buscar en el diario</span>
+          <input type="search" id="q" placeholder="Buscar entradas…" autocomplete="off">
+        </label>
+        <button class="btn" data-nav="libre"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nueva entrada</button>
+      </header>
+      <div id="view"></div>
+    </main>
+    <aside class="right" id="right"></aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'diario.entries.v1';
+  var PROMPTS = [
+    {id:'p1',cat:'Memoria',word:'MEM★RIA',bg:'#EE5D7A',text:'Escribí sobre un olor que te devuelve a un lugar. ¿Dónde estás? ¿Quién más está ahí?'},
+    {id:'p2',cat:'Hoy',word:'H★Y',bg:'#F6C3CF',text:'¿Qué fue lo más chiquito que te hizo bien hoy?'},
+    {id:'p3',cat:'Cartas',word:'CART★S',bg:'#E2574C',text:'Escribile una carta a tu yo de dentro de un año. Contale qué estás intentando.'},
+    {id:'p4',cat:'Cambios',word:'CAMBI★S',bg:'#C9A6F2',text:'¿Qué querés llevarte de esta etapa y qué querés dejar atrás?'},
+    {id:'p5',cat:'Cuerpo',word:'CUERP★',bg:'#F6C3CF',text:'¿Dónde sentís el cansancio hoy? Describilo sin juzgarlo.'},
+    {id:'p6',cat:'Gratitud',word:'GRACI★S',bg:'#EE5D7A',text:'Tres cosas que salieron mejor de lo que esperabas esta semana.'},
+    {id:'p7',cat:'Miedos',word:'MIED★S',bg:'#C9A6F2',text:'Escribí un miedo como si fuera un personaje: cómo habla, qué quiere, qué lo achica.'},
+    {id:'p8',cat:'Sueños',word:'SUEÑ★S',bg:'#E2574C',text:'Describí un día perfecto, hora por hora, con todos los detalles.'},
+    {id:'p9',cat:'Lugares',word:'LUG★R',bg:'#F6C3CF',text:'Describí tu rincón favorito como si nadie lo hubiera visto nunca.'}
+  ];
+  var PEN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  var SHUF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>';
+  var BACK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
+  var TRASH = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg>';
+  var DL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>';
+  var UP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9"/><path d="M7 14l5-5 5 5"/><path d="M5 4h14"/></svg>';
+
+  function pad(n){return (n<10?'0':'')+n}
+  function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+  function addDays(d,n){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()+n);return x}
+  function parse(s){var p=(s||'').split('-');return p.length<3?new Date():new Date(+p[0],+p[1]-1,+p[2])}
+  function longDate(s){return parse(s).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+  function shortDate(s){return parse(s).toLocaleDateString('es-AR',{day:'numeric',month:'short'}).replace('.','')}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function hl(text,q){var t=esc(text);if(!q)return t;var i=t.toLowerCase().indexOf(esc(q).toLowerCase());if(i<0)return t;var L=esc(q).length;return t.slice(0,i)+'<mark>'+t.slice(i,i+L)+'</mark>'+t.slice(i+L)}
+  function promptById(id){for(var i=0;i<PROMPTS.length;i++)if(PROMPTS[i].id===id)return PROMPTS[i];return null}
+
+  function load(){try{var r=localStorage.getItem(KEY);if(r){var a=JSON.parse(r);if(Array.isArray(a))return a}}catch(e){}return []}
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify(S.entries))}catch(e){}}
+
+  var S = {view:'inicio',mode:'libre',promptId:'p1',draft:{date:iso(new Date()),title:'',body:''},query:'',openId:null,entries:load()};
+
+  function sorted(){return S.entries.slice().sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id})}
+  function deco(e){var p=promptById(e.promptId),body=e.body||'';return {e:e,p:p,title:e.title||'Sin título',kind:p?'Consigna · '+p.cat:'Libre',dot:p?p.bg:'#B57BFF',ex:body.length>160?body.slice(0,160).trim()+'…':body}}
+  function counts(){var c={};S.entries.forEach(function(e){if(e.promptId)c[e.promptId]=(c[e.promptId]||0)+1});return c}
+  function randomPrompt(ex){var P=PROMPTS.filter(function(p){return p.id!==ex});return P[Math.floor(Math.random()*P.length)].id}
+
+  function go(view,extra){
+    S.view=view; if(extra)for(var k in extra)S[k]=extra[k];
+    if(view!=='buscar'){S.query='';document.getElementById('q').value=''}
+    render(); window.scrollTo(0,0);
+  }
+  function startPrompt(id){S.draft={date:iso(new Date()),title:'',body:''};go('escribir',{mode:'consigna',promptId:id})}
+  function startFree(){S.draft={date:iso(new Date()),title:'',body:''};go('escribir',{mode:'libre'})}
+
+  function entryRow(d,q){
+    return '<button class="entry" data-open="'+d.e.id+'"><div class="date"><b>'+parse(d.e.date).getDate()+'</b><span>'+esc(parse(d.e.date).toLocaleDateString('es-AR',{month:'short'}).replace('.',''))+'</span></div>'+
+      '<div class="info"><div class="tt"><b>'+hl(d.title,q)+'</b><span class="tag" style="background:'+d.dot+'">'+esc(d.kind)+'</span></div><span class="ex">'+hl(d.ex,q)+'</span></div></button>';
+  }
+
+  function viewInicio(){
+    var c=counts();
+    var cards=PROMPTS.map(function(p){var n=c[p.id]||0;
+      return '<article class="card"><div class="top" style="background:'+p.bg+'"><span class="word">'+esc(p.word)+'</span>'+
+        '<span class="pill">'+(n===0?'nueva':n===1?'1 respuesta':n+' respuestas')+'</span>'+
+        '<button class="round" data-prompt="'+p.id+'" aria-label="Responder: '+esc(p.cat)+'">'+PEN+'</button></div>'+
+        '<div class="body"><span class="cat">'+esc(p.cat)+'</span><p>'+esc(p.text)+'</p></div></article>';}).join('');
+    return '<section class="list" style="gap:28px"><button class="quick" data-nav="libre">Escritura libre — empezá a escribir lo que tengas en la cabeza…</button>'+
+      '<div class="row"><h2>Consignas</h2><button class="ghost red" data-nav="azar">'+SHUF+'Sorprendeme</button></div><div class="grid">'+cards+'</div></section>';
+  }
+  function viewArchivo(){
+    var all=sorted().map(deco);
+    return '<section class="list"><div class="row"><h2>Archivo</h2><span class="today">'+(all.length===1?'1 entrada':all.length+' entradas')+'</span></div>'+
+      (all.length?all.map(function(d){return entryRow(d)}).join(''):'<p class="empty">Todavía no escribiste nada. La primera página siempre es la más difícil.</p>')+
+      '<div class="tools" style="margin-top:8px"><button class="outline" id="exp">'+DL+'Exportar copia (.json)</button><label class="outline" style="cursor:pointer">'+UP+'Importar copia<input type="file" id="imp" accept="application/json" class="sr"></label></div></section>';
+  }
+  function viewBuscar(){
+    var q=S.query.trim().toLowerCase();
+    var res=sorted().map(deco).filter(function(d){return (d.e.title+' '+d.e.body+' '+(d.p?d.p.text+' '+d.p.cat:'libre')+' '+longDate(d.e.date)).toLowerCase().indexOf(q)!==-1});
+    return '<section class="list"><div class="row"><h2>Resultados</h2><span class="today">'+(res.length===1?'1 entrada':res.length+' entradas')+'</span></div>'+
+      (res.length?res.map(function(d){return entryRow(d,S.query.trim())}).join(''):'<p class="empty">Nada por acá con esa búsqueda.</p>')+'</section>';
+  }
+  function viewEscribir(){
+    var p=promptById(S.promptId)||PROMPTS[0],con=S.mode==='consigna';
+    return '<section class="list" style="gap:20px"><div class="row c"><button class="ghost" data-nav="inicio">'+BACK+'Volver</button>'+
+      '<div class="seg" role="group" aria-label="Tipo de entrada"><button data-mode="consigna" aria-pressed="'+con+'">Con consigna</button><button data-mode="libre" aria-pressed="'+!con+'">Libre</button></div></div>'+
+      (con?'<div class="prompt"><div class="sw" style="background:'+p.bg+'"><span class="word">'+esc(p.word)+'</span></div><div class="tx"><span class="kicker">Consigna · '+esc(p.cat)+'</span><p>'+esc(p.text)+'</p><button class="outline" id="shuffle" style="align-self:flex-start">'+SHUF+'Otra consigna</button></div></div>':'')+
+      '<div class="fields"><label class="field" style="flex:0 1 200px">Fecha<input type="date" id="fdate" value="'+esc(S.draft.date)+'"></label>'+
+      '<label class="field" style="flex:1 1 280px">Título (opcional)<input type="text" class="ttl" id="ftitle" placeholder="Sin título" value="'+esc(S.draft.title)+'"></label></div>'+
+      '<label class="field">Escritura<textarea id="fbody" placeholder="'+(con?'Empezá por la primera imagen que te venga…':'Escribí sin pensar demasiado. Nadie más lo va a leer.')+'">'+esc(S.draft.body)+'</textarea></label>'+
+      '<div class="row c"><span class="words" id="wc"></span><button class="btn" id="save" style="height:48px;padding:0 26px">Guardar entrada</button></div></section>';
+  }
+  function viewLeer(){
+    var e=null;S.entries.forEach(function(x){if(x.id===S.openId)e=x});
+    if(!e)return viewArchivo();
+    var d=deco(e);
+    return '<article class="read"><div class="row c"><button class="ghost" data-nav="archivo">'+BACK+'Archivo</button><button class="outline" id="del" style="color:var(--accent-text)">'+TRASH+'Eliminar</button></div>'+
+      '<div><div class="today cap">'+esc(longDate(e.date))+'</div><h2 style="margin-top:10px">'+esc(d.title)+'</h2></div>'+
+      (d.p?'<div class="q" style="background:'+d.p.bg+'"><span>Consigna</span><i>'+esc(d.p.text)+'</i></div>':'')+
+      '<p class="txt">'+esc(e.body)+'</p></article>';
+  }
+
+  function renderRight(){
+    var today=new Date(),tIso=iso(today),dates={};S.entries.forEach(function(e){dates[e.date]=true});
+    var L=['D','L','M','M','J','V','S'],week='';
+    for(var i=6;i>=0;i--){var d=addDays(today,-i),k=iso(d);week+='<div class="day'+(dates[k]?' has':'')+(k===tIso?' today':'')+'"><span>'+L[d.getDay()]+'</span><b>'+d.getDate()+'</b></div>'}
+    var ym=tIso.slice(0,7),mc=0,md={};S.entries.forEach(function(e){if(e.date.slice(0,7)===ym){mc++;md[e.date]=1}});
+    var pct=Math.min(1,Object.keys(md).length/today.getDate()),C=2*Math.PI*50;
+    var st=0,cur=dates[tIso]?today:addDays(today,-1);while(dates[iso(cur)]){st++;cur=addDays(cur,-1)}
+    var rec=sorted().slice(0,4).map(deco);
+    document.getElementById('right').innerHTML=
+      '<div><h2>Tu semana</h2><div class="week">'+week+'</div></div>'+
+      '<div class="ring"><svg width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="'+mc+' entradas este mes" style="flex:none"><circle cx="60" cy="60" r="50" fill="none" stroke="#2A2233" stroke-width="12"/><circle cx="60" cy="60" r="50" fill="none" stroke="#B57BFF" stroke-width="12" stroke-linecap="round" stroke-dasharray="'+(pct*C).toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(-90 60 60)"/><text x="60" y="58" text-anchor="middle" fill="#F4EFEA" font-family="Playfair Display, Georgia, serif" font-size="30" font-weight="700">'+mc+'</text><text x="60" y="78" text-anchor="middle" fill="#A8A29E" font-family="Inter, sans-serif" font-size="11">este mes</text></svg>'+
+      '<div><span class="k">Racha</span><span class="big">'+(st===1?'1 día':st+' días')+'</span><span class="h">'+(dates[tIso]?'Hoy ya escribiste.':'Escribí hoy para sumar un día.')+'</span></div></div>'+
+      '<div class="list" style="gap:12px"><div class="row"><h2>Últimas</h2><a href="#" data-nav="archivo" style="font:500 13px var(--sans)">Ver todo</a></div>'+
+      (rec.length?rec.map(function(d){return '<button class="recent" data-open="'+d.e.id+'"><span class="dot" style="background:'+d.dot+'"></span><span><b>'+esc(d.title)+'</b><small>'+esc(shortDate(d.e.date))+' · '+esc(d.kind)+'</small></span></button>'}).join(''):'<span class="today">Acá van a aparecer tus entradas.</span>')+'</div>';
+  }
+
+  function renderSide(){
+    var c=counts();
+    document.getElementById('sideprompts').innerHTML='<span class="label">Consignas</span>'+PROMPTS.map(function(p){return '<button class="mini" data-prompt="'+p.id+'"><span class="dot" style="background:'+p.bg+'"></span>'+esc(p.cat)+'<span class="cnt">'+(c[p.id]||'')+'</span></button>'}).join('');
+    var on={inicio:S.view==='inicio',libre:S.view==='escribir'&&S.mode==='libre',azar:S.view==='escribir'&&S.mode==='consigna',archivo:S.view==='archivo'||S.view==='leer'};
+    document.querySelectorAll('.side .nav [data-nav]').forEach(function(b){b.classList.toggle('on',!!on[b.getAttribute('data-nav')])});
+  }
+
+  function wc(){var t=S.draft.body.trim(),n=t?t.split(/\s+/).length:0;var w=document.getElementById('wc');if(w)w.textContent=n===1?'1 palabra':n+' palabras';var s=document.getElementById('save');if(s)s.disabled=!t}
+
+  function render(){
+    var v=S.view,h;
+    if(v==='buscar')h=viewBuscar();else if(v==='archivo')h=viewArchivo();else if(v==='escribir')h=viewEscribir();else if(v==='leer')h=viewLeer();else h=viewInicio();
+    document.getElementById('view').innerHTML=h;
+    renderSide();renderRight();
+    if(v==='escribir')wc();
+  }
+
+  document.addEventListener('click',function(ev){
+    var t=ev.target.closest('[data-nav],[data-prompt],[data-open],[data-mode],#shuffle,#save,#del,#exp');if(!t)return;
+    if(t.hasAttribute('data-nav')){ev.preventDefault();var n=t.getAttribute('data-nav');
+      if(n==='libre')startFree();else if(n==='azar')startPrompt(randomPrompt(S.promptId));else go(n);return}
+    if(t.hasAttribute('data-prompt')){startPrompt(t.getAttribute('data-prompt'));return}
+    if(t.hasAttribute('data-open')){go('leer',{openId:+t.getAttribute('data-open')});return}
+    if(t.hasAttribute('data-mode')){S.mode=t.getAttribute('data-mode');render();return}
+    if(t.id==='shuffle'){S.promptId=randomPrompt(S.promptId);render();return}
+    if(t.id==='save'){if(!S.draft.body.trim())return;var id=S.entries.reduce(function(m,e){return Math.max(m,e.id)},0)+1;
+      S.entries.push({id:id,date:S.draft.date||iso(new Date()),title:S.draft.title.trim(),body:S.draft.body,promptId:S.mode==='consigna'?S.promptId:null,createdAt:new Date().toISOString()});
+      persist();S.draft={date:iso(new Date()),title:'',body:''};go('leer',{openId:id});return}
+    if(t.id==='del'){if(!confirm('¿Eliminar esta entrada? No se puede deshacer.'))return;S.entries=S.entries.filter(function(e){return e.id!==S.openId});persist();go('archivo',{openId:null});return}
+    if(t.id==='exp'){var b=new Blob([JSON.stringify(S.entries,null,2)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='diario-'+iso(new Date())+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);return}
+  });
+  document.addEventListener('input',function(ev){
+    var id=ev.target.id;
+    if(id==='q'){S.query=ev.target.value;if(S.query.trim()){S.view='buscar';document.getElementById('view').innerHTML=viewBuscar();renderSide()}else go('inicio');return}
+    if(id==='ftitle')S.draft.title=ev.target.value;
+    if(id==='fbody'){S.draft.body=ev.target.value;wc()}
+    if(id==='fdate')S.draft.date=ev.target.value||iso(new Date());
+  });
+  document.addEventListener('change',function(ev){
+    if(ev.target.id!=='imp'||!ev.target.files[0])return;
+    var r=new FileReader();r.onload=function(){try{var a=JSON.parse(r.result);if(!Array.isArray(a))throw 0;
+      var max=S.entries.reduce(function(m,e){return Math.max(m,e.id)},0),seen={};S.entries.forEach(function(e){seen[e.date+'|'+e.title+'|'+e.body]=1});
+      a.forEach(function(e){if(e&&e.body&&e.date&&!seen[e.date+'|'+(e.title||'')+'|'+e.body]){max++;S.entries.push({id:max,date:e.date,title:e.title||'',body:e.body,promptId:e.promptId||null,createdAt:e.createdAt})}});
+      persist();render()}catch(e){alert('No pude leer ese archivo.')}};r.readAsText(ev.target.files[0]);
+  });
+
+  document.getElementById('today').textContent=longDate(iso(new Date()));
+  render();
+})();
+</script>
+</body>
+</html>
