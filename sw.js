@@ -1,7 +1,7 @@
 // Service worker: permite usar el diario sin conexión.
 // Cambiá VERSION cada vez que subas cambios para que el celu tome la versión nueva.
-const VERSION = 'diario-v2.0.0';
-const SHELL = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
+const VERSION = 'diario-v2.1.0';
+const SHELL = ['./', './index.html', './styles.css', './app.js', './config.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

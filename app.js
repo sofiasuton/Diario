@@ -56,7 +56,8 @@ const I = {
   expand: sv('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', 16, 2),
   plus: sv('<path d="M12 5v14M5 12h14"/>', 16, 2.2),
   seal: sv('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', 14, 2),
-  check: sv('<path d="M5 12l5 5L20 7"/>', 14, 2.4)
+  check: sv('<path d="M5 12l5 5L20 7"/>', 14, 2.4),
+  cloud: sv('<path d="M7 18a5 5 0 0 1-.6-9.96A6 6 0 0 1 18 8a4.5 4.5 0 0 1-.5 10z"/>')
 };
 
 /* ---------- utilidades ---------- */
@@ -124,7 +125,8 @@ function idbSet(k, v) {
 }
 
 const DEFAULT_DATA = () => ({
-  v: 2, entries: [], customPrompts: [], draft: null, lastBackup: null,
+  v: 2, entries: [], customPrompts: [], draft: null, lastBackup: null, deleted: {}, deletedPrompts: {},
+  sync: { enabled: false, fileId: null, last: null, email: null },
   settings: { theme: 'dark', dailyGoal: 200, monthlyGoal: 20, pinHash: null, pinSalt: null }
 });
 let D = DEFAULT_DATA();
@@ -494,6 +496,7 @@ function viewAjustes() {
       <p>Las entradas se guardan en este navegador y en este dispositivo. Exportá una copia cada tanto: el .json sirve para restaurar todo (fotos y consignas propias incluidas) y el .md es para leer o imprimir.${D.lastBackup ? ' Última copia: ' + esc(medDate(iso(new Date(D.lastBackup)))) + '.' : ''}</p>
       <div class="tools"><button class="outline" data-act="export-json">${I.dl} Exportar todo (.json)</button><button class="outline" data-act="export-md">${I.dl} Exportar todo (.md)</button>
       <label class="outline" style="cursor:pointer">${I.up} Importar copia<input type="file" id="imp" accept="application/json,.json" class="sr"></label></div></div>
+    ${viewSyncSetting()}
     <div class="setting"><h3>Instalar como app</h3><p>En el celu: abrí el diario en el navegador y elegí “Agregar a pantalla de inicio” (Chrome: menú ⋮ → Instalar app; iPhone/Safari: Compartir → Agregar a inicio). Funciona sin conexión.</p>
       ${U.installEvt ? `<div class="tools"><button class="btn" data-act="install">Instalar ahora</button></div>` : ''}</div>
   </section>`;
@@ -567,7 +570,7 @@ function render() {
   else if (v === 'leer') h = viewLeer(); else if (v === 'stats') h = viewStats(); else if (v === 'consignas') h = viewConsignas();
   else if (v === 'ajustes') h = viewAjustes(); else h = viewInicio();
   $('#view').innerHTML = h;
-  renderSide(); renderRight(); renderLock();
+  renderSide(); renderRight(); renderLock(); renderSyncBtn();
   if (v === 'escribir') { updateCount(); if (draftHasContent(D.draft)) setSaved('ok'); }
 }
 
@@ -616,9 +619,9 @@ async function importFile(file) {
     });
     if (raw && Array.isArray(raw.customPrompts)) {
       const have = new Set(allPrompts().map(p => p.id));
-      raw.customPrompts.forEach(p => { if (p && p.id && p.cat && p.text && !have.has(p.id)) D.customPrompts.push({ id: p.id, cat: String(p.cat), text: String(p.text), bg: SWATCHES.includes(p.bg) ? p.bg : SWATCHES[0], word: starWord(String(p.cat)), custom: true }); });
+      raw.customPrompts.forEach(p => { if (p && p.id && p.cat && p.text && !have.has(p.id)) D.customPrompts.push({ id: p.id, cat: String(p.cat), text: String(p.text), bg: SWATCHES.includes(p.bg) ? p.bg : SWATCHES[0], word: starWord(String(p.cat)), custom: true, updatedAt: new Date().toISOString() }); });
     }
-    await persist(true); render();
+    await persist(true); scheduleSync(); render();
     toast(added ? 'Importadas ' + plural(added, 'entrada', 'entradas') + '.' : 'No había entradas nuevas para importar.');
   } catch (e) { toast('No pude leer ese archivo. Tiene que ser una copia .json del diario.'); }
 }
@@ -643,7 +646,7 @@ function saveDraftAsEntry() {
   let id = d.editId;
   if (id) { const e = D.entries.find(x => x.id === id); if (e) Object.assign(e, data); }
   else { id = uid(); D.entries.push(Object.assign({ id, fav: false, opened: false, createdAt: now }, data)); }
-  D.draft = null; persist(true);
+  D.draft = null; persist(true); scheduleSync();
   if (data.openAt) { toast('Cápsula sellada hasta el ' + medDate(data.openAt) + '.'); go('archivo', { favOnly: false }); }
   else { toast('Entrada guardada.'); go('leer', { openId: id }); }
 }
@@ -669,6 +672,156 @@ function setFocus(on) {
   updateCount();
 }
 
+
+/* ---------- sincronización con Google Drive ---------- */
+const SYNC_FILE = 'Diario (sincronización).json';
+const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const clientId = () => ((window.DIARIO_CONFIG && window.DIARIO_CONFIG.googleClientId) || D.settings.googleClientId || '').trim();
+const SY = { state: 'idle', msg: '', timer: null, running: false, tokenClient: null, gisLoading: null };
+function readToken() { try { const t = JSON.parse(localStorage.getItem('diario.gtoken') || 'null'); return t && t.exp > Date.now() + 30000 ? t : null; } catch (e) { return null; } }
+function writeToken(t) { try { t ? localStorage.setItem('diario.gtoken', JSON.stringify(t)) : localStorage.removeItem('diario.gtoken'); } catch (e) {} }
+const validToken = () => !!readToken();
+function loadGIS() {
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  if (SY.gisLoading) return SY.gisLoading;
+  SY.gisLoading = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+    s.onload = () => res(); s.onerror = () => { SY.gisLoading = null; rej(new Error('gis')); };
+    document.head.appendChild(s);
+  });
+  return SY.gisLoading;
+}
+async function getToken(interactive) {
+  const t = readToken(); if (t) return t.token;
+  if (!interactive) return null;
+  if (!clientId()) { toast('Primero pegá el Client ID de Google en Ajustes.'); return null; }
+  await loadGIS();
+  return new Promise(resolve => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: clientId(), scope: SCOPE,
+      callback: r => {
+        if (r && r.access_token) { writeToken({ token: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000 }); resolve(r.access_token); }
+        else resolve(null);
+      },
+      error_callback: () => resolve(null)
+    });
+    client.requestAccessToken({ prompt: D.sync.enabled ? '' : 'consent', hint: D.sync.email || undefined });
+  });
+}
+async function gfetch(url, opts, token) {
+  const r = await fetch(url, Object.assign({}, opts, { headers: Object.assign({ Authorization: 'Bearer ' + token }, (opts && opts.headers) || {}) }));
+  if (r.status === 401) { writeToken(null); const e = new Error('auth'); e.auth = true; throw e; }
+  return r;
+}
+async function findFile(token) {
+  const q = encodeURIComponent("name='" + SYNC_FILE + "' and trashed=false");
+  const r = await gfetch('https://www.googleapis.com/drive/v3/files?spaces=drive&fields=files(id,modifiedTime)&orderBy=modifiedTime%20desc&q=' + q, {}, token);
+  if (!r.ok) throw new Error('list ' + r.status);
+  const j = await r.json(); return j.files && j.files[0] ? j.files[0].id : null;
+}
+async function downloadFile(id, token) {
+  const r = await gfetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', {}, token);
+  if (r.status === 404) return { missing: true };
+  if (!r.ok) throw new Error('get ' + r.status);
+  return { data: await r.json() };
+}
+async function uploadFile(id, body, token) {
+  const meta = id ? {} : { name: SYNC_FILE, mimeType: 'application/json', description: 'Copia sincronizada del Diario. No la edites a mano.' };
+  const base = 'https://www.googleapis.com/upload/drive/v3/files' + (id ? '/' + id : '');
+  // subida reanudable (sirve para archivos grandes con fotos)
+  const init = await gfetch(base + '?uploadType=resumable&fields=id', {
+    method: id ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/json' },
+    body: JSON.stringify(meta)
+  }, token);
+  const loc = init.ok && init.headers.get('Location');
+  if (loc) {
+    const r = await fetch(loc, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+    if (!r.ok) throw new Error('put ' + r.status);
+    return (await r.json()).id;
+  }
+  // respaldo: subida multipart (hasta 5 MB)
+  const b = 'diario' + uid();
+  const mp = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + b + '\r\nContent-Type: application/json\r\n\r\n' + body + '\r\n--' + b + '--';
+  const r = await gfetch(base + '?uploadType=multipart&fields=id', { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: mp }, token);
+  if (!r.ok) throw new Error('up ' + r.status);
+  return (await r.json()).id;
+}
+function newer(a, b) { return String(a || '') > String(b || ''); }
+function mergeRemote(remote) {
+  if (!remote || typeof remote !== 'object') return;
+  const del = Object.assign({}, remote.deleted || {});
+  Object.entries(D.deleted || {}).forEach(([k, v]) => { if (newer(v, del[k])) del[k] = v; });
+  const map = new Map();
+  D.entries.forEach(e => map.set(e.id, e));
+  (remote.entries || []).map(normalizeEntry).filter(Boolean).forEach(e => { const l = map.get(e.id); if (!l || newer(e.updatedAt, l.updatedAt)) map.set(e.id, e); });
+  D.entries = Array.from(map.values()).filter(e => !(del[e.id] && !newer(e.updatedAt, del[e.id])));
+  D.deleted = del;
+  const delP = Object.assign({}, remote.deletedPrompts || {});
+  Object.entries(D.deletedPrompts || {}).forEach(([k, v]) => { if (newer(v, delP[k])) delP[k] = v; });
+  const pm = new Map(); D.customPrompts.forEach(p => pm.set(p.id, p));
+  (remote.customPrompts || []).forEach(p => {
+    if (!p || !p.id || !p.cat || !p.text) return;
+    const np = { id: p.id, cat: String(p.cat), text: String(p.text), bg: SWATCHES.includes(p.bg) ? p.bg : SWATCHES[0], word: starWord(String(p.cat)), custom: true, updatedAt: p.updatedAt || '' };
+    const l = pm.get(p.id); if (!l || newer(np.updatedAt, l.updatedAt)) pm.set(p.id, np);
+  });
+  D.customPrompts = Array.from(pm.values()).filter(p => !(delP[p.id] && !newer(p.updatedAt, delP[p.id])));
+  D.deletedPrompts = delP;
+}
+function setSync(state, msg) { SY.state = state; SY.msg = msg || ''; renderSyncBtn(); const el = $('#syncstatus'); if (el) el.textContent = syncLabel(); }
+function syncLabel() {
+  if (SY.state === 'running') return 'Sincronizando…';
+  if (SY.state === 'error') return SY.msg || 'No se pudo sincronizar';
+  if (!validToken()) return 'Tocá para sincronizar';
+  if (D.sync.last) { const d = new Date(D.sync.last); return 'Sincronizado ' + (iso(d) === todayIso() ? 'hoy' : shortDate(iso(d))) + ' a las ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  return 'Sin sincronizar';
+}
+async function syncNow(interactive) {
+  if (SY.running) return; SY.running = true;
+  try {
+    const token = await getToken(interactive);
+    if (!token) { setSync('idle'); return; }
+    setSync('running');
+    if (!D.sync.email) { try { const r = await gfetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)', {}, token); if (r.ok) D.sync.email = (await r.json()).user.emailAddress; } catch (e) { if (e.auth) throw e; } }
+    let id = D.sync.fileId || await findFile(token);
+    if (id) {
+      const got = await downloadFile(id, token);
+      if (got.missing) { id = await findFile(token); if (id) { const g2 = await downloadFile(id, token); if (g2.data) mergeRemote(g2.data); } }
+      else mergeRemote(got.data);
+    }
+    const payload = JSON.stringify({ app: 'diario', version: 2, syncedAt: new Date().toISOString(), entries: D.entries, customPrompts: D.customPrompts, deleted: D.deleted, deletedPrompts: D.deletedPrompts });
+    id = await uploadFile(id, payload, token);
+    D.sync.enabled = true; D.sync.fileId = id; D.sync.last = new Date().toISOString();
+    await persist(true);
+    setSync('ok');
+    if (U.view !== 'escribir') render(); else { renderSide(); renderRight(); }
+  } catch (e) {
+    if (e.auth) setSync('idle'); else setSync('error', navigator.onLine === false ? 'Sin conexión: se sincroniza después' : 'No se pudo sincronizar');
+  } finally { SY.running = false; }
+}
+function scheduleSync() { if (!D.sync.enabled || !validToken()) { renderSyncBtn(); return; } clearTimeout(SY.timer); SY.timer = setTimeout(() => syncNow(false), 4000); }
+function renderSyncBtn() {
+  const b = $('#syncbtn'); if (!b) return;
+  b.hidden = !D.sync.enabled;
+  const spin = SY.state === 'running', bad = SY.state === 'error' || !validToken();
+  b.innerHTML = I.cloud + (bad && !spin ? '<i class="sdot"></i>' : '');
+  b.classList.toggle('spin', spin);
+  b.setAttribute('aria-label', 'Google Drive: ' + syncLabel());
+  b.title = syncLabel();
+}
+function viewSyncSetting() {
+  const cid = clientId(), fromConfig = !!(window.DIARIO_CONFIG && window.DIARIO_CONFIG.googleClientId);
+  let inner;
+  if (!cid) inner = `<p>Para entrar desde cualquier dispositivo, el diario guarda una copia en tu Google Drive (un archivo llamado “${SYNC_FILE}”) y la mezcla con lo que tengas en cada compu o celu. Primero hay que crear un permiso en Google Cloud (se hace una sola vez, los pasos están en el README) y pegar acá el Client ID.</p>
+    <form id="cidform" class="fields"><label class="field" style="flex:1 1 320px">Client ID de Google<input type="text" id="cid" placeholder="123456-abc.apps.googleusercontent.com" autocomplete="off" required></label><div style="align-self:flex-end"><button class="btn" type="submit">Guardar</button></div></form>`;
+  else if (!D.sync.enabled) inner = `<p>Conectá tu cuenta de Google para guardar el diario en tu Drive y abrirlo desde otros dispositivos. Si ya lo conectaste en otro lado, las entradas se juntan: no se pisa nada.</p>
+    <div class="tools"><button class="btn" data-act="gconnect">${I.cloud} Conectar con Google Drive</button>${fromConfig ? '' : `<button class="ghost" data-act="cidclear">Cambiar Client ID</button>`}</div>`;
+  else inner = `<p>${D.sync.email ? 'Conectado como <b>' + esc(D.sync.email) + '</b>. ' : ''}<span id="syncstatus">${esc(syncLabel())}</span>.</p>
+    <p>Se sincroniza solo cuando guardás, borrás o marcás favoritas. Google pide volver a confirmar cada una hora: si ves el puntito rojo en la nube de arriba, tocala.</p>
+    <div class="tools"><button class="btn" data-act="gsync">${I.cloud} Sincronizar ahora</button><button class="outline danger" data-act="gdisconnect">Desconectar este dispositivo</button></div>`;
+  return `<div class="setting"><h3>Sincronizar con Google Drive</h3>${inner}</div>`;
+}
+
 const ACTIONS = {
   goto: (el) => { const v = el.dataset.v; const extra = {}; if (el.dataset.fav != null) extra.favOnly = el.dataset.fav === '1'; if (v === 'escribir' && !D.draft) D.draft = emptyDraft(); go(v, extra); },
   free: () => startFree(),
@@ -688,14 +841,14 @@ const ACTIONS = {
   focus: () => setFocus(!U.focus),
   save: () => saveDraftAsEntry(),
   discard: () => { if (!draftHasContent(D.draft) || confirm('¿Descartar este borrador?')) { D.draft = null; persist(true); go('inicio'); } },
-  fav: (el) => { const e = D.entries.find(x => x.id === el.dataset.id); if (e) { e.fav = !e.fav; persist(true); render(); toast(e.fav ? 'Agregada a favoritas ★' : 'Quitada de favoritas'); } },
+  fav: (el) => { const e = D.entries.find(x => x.id === el.dataset.id); if (e) { e.fav = !e.fav; e.updatedAt = new Date().toISOString(); persist(true); scheduleSync(); render(); toast(e.fav ? 'Agregada a favoritas ★' : 'Quitada de favoritas'); } },
   edit: (el) => {
     const e = D.entries.find(x => x.id === el.dataset.id); if (!e) return;
     D.draft = emptyDraft({ editId: e.id, mode: e.promptId ? 'consigna' : 'libre', promptId: e.promptId || promptOfDay().id, date: e.date, title: e.title, body: e.body, tags: (e.tags || []).slice(), photos: (e.photos || []).slice(), mood: e.mood, sealed: !!e.openAt && isSealed(e), openAt: e.openAt || '' });
     go('escribir');
   },
-  del: (el) => { if (!confirm('¿Eliminar esta entrada? No se puede deshacer.')) return; D.entries = D.entries.filter(x => x.id !== el.dataset.id); persist(true); toast('Entrada eliminada.'); go('archivo'); },
-  unseal: (el) => { if (!confirm('¿Abrir la cápsula antes de tiempo?')) return; const e = D.entries.find(x => x.id === el.dataset.id); if (e) { e.openAt = null; e.opened = true; persist(true); render(); } },
+  del: (el) => { if (!confirm('¿Eliminar esta entrada? No se puede deshacer.')) return; D.entries = D.entries.filter(x => x.id !== el.dataset.id); D.deleted[el.dataset.id] = new Date().toISOString(); persist(true); scheduleSync(); toast('Entrada eliminada.'); go('archivo'); },
+  unseal: (el) => { if (!confirm('¿Abrir la cápsula antes de tiempo?')) return; const e = D.entries.find(x => x.id === el.dataset.id); if (e) { e.openAt = null; e.opened = true; e.updatedAt = new Date().toISOString(); persist(true); scheduleSync(); render(); } },
   pdf: (el) => { const e = D.entries.find(x => x.id === el.dataset.id); if (e) printEntry(e); },
   md1: (el) => { const e = D.entries.find(x => x.id === el.dataset.id); if (e) download((e.title || 'entrada').replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase() + '-' + e.date + '.md', entryMD(e), 'text/markdown'); },
   lightbox: (el) => { const e = D.entries.find(x => x.id === el.dataset.id); if (!e) return; const lb = $('#lightbox'); lb.innerHTML = `<img src="${e.photos[+el.dataset.v]}" alt="Foto"><button class="iconbtn" data-act="closelb" aria-label="Cerrar">${I.x}</button>`; lb.hidden = false; },
@@ -707,7 +860,15 @@ const ACTIONS = {
   pixnav: (el) => { U.pixY += +el.dataset.v; render(); },
   pixday: (el) => { const k = el.dataset.v; U.archTab = 'mes'; U.calY = +k.slice(0, 4); U.calM = +k.slice(5, 7) - 1; U.calDay = k; render(); },
   swatch: (el) => { U.newColor = el.dataset.v; document.querySelectorAll('.swatch').forEach(s => s.setAttribute('aria-pressed', s.dataset.v === U.newColor)); },
-  delprompt: (el) => { if (!confirm('¿Borrar esta consigna? Las entradas que la usaron quedan como escritura libre.')) return; D.customPrompts = D.customPrompts.filter(p => p.id !== el.dataset.id); persist(true); render(); },
+  delprompt: (el) => { if (!confirm('¿Borrar esta consigna? Las entradas que la usaron quedan como escritura libre.')) return; D.customPrompts = D.customPrompts.filter(p => p.id !== el.dataset.id); D.deletedPrompts[el.dataset.id] = new Date().toISOString(); persist(true); scheduleSync(); render(); },
+  gconnect: () => syncNow(true).then(() => { if (D.sync.enabled) toast('Listo: el diario quedó conectado a tu Drive.'); render(); }),
+  gsync: () => syncNow(true),
+  gdisconnect: () => {
+    if (!confirm('¿Desconectar este dispositivo de Google Drive? Las entradas quedan acá y en tu Drive; solo deja de sincronizar.')) return;
+    const t = readToken(); if (t && window.google && google.accounts) { try { google.accounts.oauth2.revoke(t.token); } catch (e) {} }
+    writeToken(null); D.sync = DEFAULT_DATA().sync; persist(true); setSync('idle'); render();
+  },
+  cidclear: () => { D.settings.googleClientId = ''; persist(true); render(); },
   'export-json': () => exportJSON(),
   'export-md': () => exportMD(),
   lock: () => { if (D.settings.pinHash) { U.locked = true; U.pin = ''; renderLock(); } },
@@ -776,8 +937,13 @@ document.addEventListener('submit', async ev => {
   ev.preventDefault();
   if (ev.target.id === 'newprompt') {
     const cat = $('#npcat').value.trim(), text = $('#nptext').value.trim(); if (!cat || !text) return;
-    D.customPrompts.push({ id: 'c' + uid(), cat, text, bg: U.newColor, word: starWord(cat), custom: true });
-    persist(true); render(); toast('Consigna creada.');
+    D.customPrompts.push({ id: 'c' + uid(), cat, text, bg: U.newColor, word: starWord(cat), custom: true, updatedAt: new Date().toISOString() });
+    persist(true); scheduleSync(); render(); toast('Consigna creada.');
+  }
+  if (ev.target.id === 'cidform') {
+    const v = $('#cid').value.trim();
+    if (!/\.apps\.googleusercontent\.com$/.test(v)) return toast('Ese no parece un Client ID: termina en .apps.googleusercontent.com');
+    D.settings.googleClientId = v; persist(true); render(); toast('Client ID guardado.'); return;
   }
   if (ev.target.id === 'pinform') {
     const a = $('#pin1').value, b = $('#pin2').value;
@@ -789,7 +955,10 @@ document.addEventListener('submit', async ev => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { U.hiddenAt = Date.now(); if (saveTimer) persist(true); }
-  else if (D.settings.pinHash && U.hiddenAt && Date.now() - U.hiddenAt > LOCK_AFTER_MS) { U.locked = true; U.pin = ''; renderLock(); }
+  else {
+    if (D.settings.pinHash && U.hiddenAt && Date.now() - U.hiddenAt > LOCK_AFTER_MS) { U.locked = true; U.pin = ''; renderLock(); }
+    if (D.sync.enabled && validToken() && (!D.sync.last || Date.now() - new Date(D.sync.last) > 60000)) syncNow(false);
+  }
 });
 window.addEventListener('pagehide', () => { if (saveTimer) persist(true); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && U.focus) setFocus(false); });
@@ -799,16 +968,17 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); U.inst
 /* ---------- arranque ---------- */
 (async function init() {
   const loaded = await loadData();
-  if (loaded) { D = Object.assign(DEFAULT_DATA(), loaded); D.settings = Object.assign(DEFAULT_DATA().settings, loaded.settings || {}); D.entries = (D.entries || []).map(normalizeEntry).filter(Boolean); D.customPrompts = D.customPrompts || []; }
+  if (loaded) { D = Object.assign(DEFAULT_DATA(), loaded); D.settings = Object.assign(DEFAULT_DATA().settings, loaded.settings || {}); D.entries = (D.entries || []).map(normalizeEntry).filter(Boolean); D.customPrompts = D.customPrompts || []; D.deleted = D.deleted || {}; D.deletedPrompts = D.deletedPrompts || {}; D.sync = Object.assign(DEFAULT_DATA().sync, loaded.sync || {}); }
   // marcar cápsulas abiertas como vistas recién cuando se leen
   const origOpen = ACTIONS.open;
-  ACTIONS.open = el => { const e = D.entries.find(x => x.id === el.dataset.id); if (e && e.openAt && e.openAt <= todayIso() && !e.opened) { e.opened = true; persist(true); } origOpen(el); };
+  ACTIONS.open = el => { const e = D.entries.find(x => x.id === el.dataset.id); if (e && e.openAt && e.openAt <= todayIso() && !e.opened) { e.opened = true; e.updatedAt = new Date().toISOString(); persist(true); scheduleSync(); } origOpen(el); };
   if (!loaded) persist(true);
   U.locked = !!D.settings.pinHash;
   applyTheme();
   $('#today').textContent = longDate(todayIso());
   if (draftHasContent(D.draft) && location.hash === '#escribir') U.view = 'escribir';
   render();
+  if (D.sync.enabled && validToken()) syncNow(false);
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
