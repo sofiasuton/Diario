@@ -29,6 +29,7 @@
           <span class="sr">Buscar en el diario</span>
           <input type="search" id="q" placeholder="Buscar… (o #etiqueta)" autocomplete="off">
         </label>
+        <button class="iconbtn" data-act="gsync" id="syncbtn" hidden aria-label="Sincronizar con Google Drive"></button>
         <button class="iconbtn" data-act="theme" id="themebtn" aria-label="Cambiar modo claro u oscuro"></button>
         <button class="btn" data-act="new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nueva entrada</span></button>
       </header>
@@ -42,6 +43,7 @@
 <div id="lightbox" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="print"></div>
+<script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

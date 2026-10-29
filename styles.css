@@ -56,7 +56,7 @@ main{flex:999 1 560px;min-width:0;padding:32px 36px 56px;display:flex;flex-direc
 h1{margin:0;font-size:40px;font-weight:800;letter-spacing:-.01em}
 h2{margin:0;font-size:26px;font-weight:700}
 h3{margin:0;font-size:19px;font-weight:700}
-.search{flex:0 1 320px;min-width:200px;display:flex;align-items:center;gap:10px;height:44px;padding:0 16px;border-radius:12px;background:var(--field);border:1px solid var(--line2);color:var(--muted)}
+.search{flex:0 1 280px;min-width:180px;display:flex;align-items:center;gap:10px;height:44px;padding:0 16px;border-radius:12px;background:var(--field);border:1px solid var(--line2);color:var(--muted)}
 .search input{flex:1;min-width:0;height:40px;background:transparent;border:0;outline:none;color:var(--text);font:400 15px var(--sans)}
 .btn{min-height:44px;padding:0 20px;border:0;border-radius:12px;background:var(--accent);color:#fff;font:600 15px var(--sans);display:inline-flex;align-items:center;justify-content:center;gap:8px}
 .iconbtn{width:44px;height:44px;border-radius:12px;border:1px solid var(--line2);background:var(--field);color:var(--soft);display:inline-flex;align-items:center;justify-content:center;flex:none}
@@ -302,3 +302,8 @@ body.focus .field textarea:focus,body.focus .field input.ttl:focus{outline:none}
   #print .pg img{width:45%;border-radius:4pt}
   #print .pm{font:10pt Georgia,serif;color:#666;margin-top:16pt}
 }
+
+#syncbtn{position:relative}
+#syncbtn .sdot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--accent-text)}
+#syncbtn.spin svg{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
